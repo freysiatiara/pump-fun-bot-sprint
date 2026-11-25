@@ -71,6 +71,56 @@ STALE_SLOTS = 600              # exit when no trade hit the coin for this long
 COOLDOWN = 300                 # slots to ignore a coin after an exit
 
 
+def _validate_config():
+    """Fail fast at startup if the tuning constants above are inconsistent.
+
+    The bot's behaviour is a pure function of these values, so a typo'd
+    constant (a negative stake, a stop loss at or beyond 100%, an inverted
+    reserve window) would otherwise surface only as silently wrong trades.
+    Returns a list of problems; empty means the configuration is usable.
+    """
+    problems = []
+    if LAMPORTS_PER_SOL <= 0:
+        problems.append("LAMPORTS_PER_SOL must be positive")
+    if BPS <= 0:
+        problems.append("BPS must be positive")
+    if not 0 <= FEE_BPS < BPS:
+        problems.append("FEE_BPS must be in [0, BPS)")
+    if MAX_AGE < 0:
+        problems.append("MAX_AGE must be >= 0")
+    if not 0 < MIN_RQ <= MAX_RQ:
+        problems.append("need 0 < MIN_RQ <= MAX_RQ")
+    if not 0 <= MIN_DEV_BUY <= MAX_DEV_BUY:
+        problems.append("need 0 <= MIN_DEV_BUY <= MAX_DEV_BUY")
+    if not 0 <= MIN_BUYERS <= MAX_BUYERS:
+        problems.append("need 0 <= MIN_BUYERS <= MAX_BUYERS")
+    if MAX_SELL_RATIO_BPS < 0 or MAX_BIG_SELL_BPS < 0:
+        problems.append("sell-ratio caps must be >= 0")
+    if MIN_RUNUP_BPS < 0 or MIN_RUNUP_BPS > MAX_RUNUP_BPS:
+        problems.append("need 0 <= MIN_RUNUP_BPS <= MAX_RUNUP_BPS")
+    if FLOW_WINDOW <= 0:
+        problems.append("FLOW_WINDOW must be positive")
+    if not 0 < MIN_BUY <= STAKE:
+        problems.append("need 0 < MIN_BUY <= STAKE")
+    if not 0 <= BUY_SLIPPAGE_BPS <= BPS:
+        problems.append("BUY_SLIPPAGE_BPS must be in [0, BPS]")
+    if not 0 <= SELL_SLIPPAGE_BPS <= BPS:
+        problems.append("SELL_SLIPPAGE_BPS must be in [0, BPS]")
+    if not 0 < TP_BPS < BPS:
+        problems.append("TP_BPS must be in (0, BPS)")
+    if not 0 < SL_BPS < BPS:
+        problems.append("SL_BPS must be in (0, BPS)")
+    if not 0 <= TRAIL_ARM_BPS < BPS or not 0 <= TRAIL_BPS < BPS:
+        problems.append("trailing-stop bps must be in [0, BPS)")
+    if MAX_HOLD <= 0:
+        problems.append("MAX_HOLD must be positive")
+    if STALE_SLOTS <= 0:
+        problems.append("STALE_SLOTS must be positive")
+    if COOLDOWN < 0:
+        problems.append("COOLDOWN must be >= 0")
+    return problems
+
+
 def _ceil_div(a, b):
     return -(-a // b)
 
@@ -399,4 +449,10 @@ class Sniper:
 
 
 if __name__ == "__main__":
+    _problems = _validate_config()
+    if _problems:
+        sys.stderr.write(
+            "main.py: invalid configuration: " + "; ".join(_problems) + "\n"
+        )
+        sys.exit(2)
     makefun_bot.run(Sniper().on_batch)
